@@ -3,7 +3,7 @@ import os
 from . import admin
 from flask import render_template, redirect, url_for, session, request, flash
 from app.admin.forms import LoginForm,TagForm,MovieForm,PreviewForm
-from app.models import Admin, Tag, db, Oplog, Movie,Preview
+from app.models import Admin, Tag, db, Oplog, Movie,Preview,User,Comment,Moviecol
 from functools import wraps
 from werkzeug.utils import secure_filename
 from app import app
@@ -139,16 +139,15 @@ def movie_add():
     form=MovieForm()
     if form.validate_on_submit():
         data=form.data
-        file_url=secure_filename(form.url.data)
-        file_logo=secure_filename(form.logo.data)
+        file_url=secure_filename(form.url.data.filename)
+        file_logo=secure_filename(form.logo.data.filename)
         if not os.path.exists(app.config['UP_DIR']):
             os.makedirs(app.config['UP_DIR'])
             os.chmod(app.config['UP_DIR'],'rw')
         url=change_filename(file_url)
         logo=change_filename(file_logo)
-        # --------------------错误---------------
-        # form.url.data.save(app.config["UP_DIR"] + url)
-        # form.logo.data.save(app.config["UP_DIR"] + logo)
+        form.url.data.save(app.config["UP_DIR"] + url)
+        form.logo.data.save(app.config["UP_DIR"] + logo)
         movie=Movie(
             title=data['title'],
             url=url,
@@ -181,21 +180,64 @@ def movie_list(page=1):
         Movie.addtime.desc()).paginate(page=page,per_page=2)
     return render_template('admin/movie_list.html',page_data=page_data)
 
+# 电影删除
+@admin.route('/movie/del/<int:id>')
+@admin_login_req
+def movie_del(id):
+    movie=Movie.query.get_or_404(id)
+    try:
+        db.session.delete(movie)
+        db.session.commit()
+        flash('删除成功','ok')
+    except Exception as e:
+        db.session.rollback()
+        flash('删除失败','err')
+    return redirect(url_for('admin.movie_list',page=1))
+# 电影编辑
+@admin.route('/movie/edit/<int:id>',methods=['POST','GET'])
+@admin_login_req
+def movie_edit(id=None):
+    form=MovieForm()
+    movie=Movie.query.get_or_404(id)
+    if form.validate_on_submit() and movie:
+        data=form.data
+        file_logo=secure_filename(form.logo.data.filename)
+        file_url=secure_filename(form.url.data.filename)
+        logo=change_filename(file_logo)
+        url=change_filename(file_url)
+        form.logo.data.save(app.config['UP_DIR']+logo)
+        form.url.data.save(app.config['UP_DIR']+url)
+        movie.title = data['title']
+        movie.url = url
+        movie.info = data['info']
+        movie.logo = logo
+        movie.star = data['star']
+        movie.tag_id = data['tag']
+        movie.area = data['area']
+        movie.length = data['length']
+        movie.release_time = data['release_time']
+        try:
+            db.session.commit()
+            flash('修改成功','ok')
+        except Exception as e:
+            db.session.rollback()
+            flash('修改失败','err')
+        redirect(url_for('admin.movie_edit',id=id))
+    return render_template('admin/movie_edit.html',form=form,movie=movie)
 
 # 预告添加
 @admin.route('/preview/add',methods=['GET','POST'])
+@admin_login_req
 def preview_add():
     form=PreviewForm()
     if form.validate_on_submit():
         data=form.data
-        file_logo=secure_filename(form.logo.data) #获取文件名
+        file_logo=secure_filename(form.logo.data.filename) #获取文件名
         if not os.path.exists(app.config['UP_DIR']):
             os.makedirs(app.config['UP_DIR'])
             os.chmod(app.config['UP_DIR'],'rw')
         logo=change_filename(file_logo)
-        file_data=form.logo
-        print(type(file_data),file_data)
-        file_data.save(app.config['UP_DIR']+logo)
+        form.logo.data.save(app.config['UP_DIR']+logo)
         # form.logo.data.save(app.config['UP_DIR']+logo)
         preview=Preview(
             title=data['title'],
@@ -219,34 +261,117 @@ def preview_list(page=1):
     previews=Preview.query.order_by(Preview.addtime.desc()).paginate(page=page,per_page=2)
     return render_template('admin/preview_list.html',previews=previews)
 
+# 预告删除
+@admin.route('/preview/del/<int:id>')
+@admin_login_req
+def preview_del(id):
+    preview=Preview.query.get_or_404(id)
+    try:
+        db.session.delete(preview)
+        db.session.commit()
+        flash('删除成功','ok')
+    except Exception as e:
+        db.session.rollback()
+        flash('删除失败','err')
+    return redirect(url_for('admin.preview_list',page=1))
+
+# 预告编辑
+@admin.route('/preview/edit/<int:id>',methods=['GET','POST'])
+@admin_login_req
+def preview_edit(id=None):
+    form=PreviewForm()
+    preview=Preview.query.get_or_404(id)
+    if form.validate_on_submit() and preview:
+        data=form.data
+        file_logo=secure_filename(form.logo.data.filename)
+        logo=change_filename(file_logo)
+        form.logo.data.save(app.config['UP_DIR']+logo)
+        preview.title=data['title']
+        preview.logo=logo
+        try:
+            db.session.commit()
+            flash('保存成功','ok')
+        except Exception as e:
+            db.session.rollback()
+            flash('保存失败','err')
+        return redirect(url_for('admin.preview_edit',id=id))
+    return render_template('admin/preview_edit.html',form=form,preview=preview)
+
 
 # 会员列表
-@admin.route('/user/list')
+@admin.route('/user/list/<int:page>')
 @admin_login_req
-def user_list():
-    return render_template('admin/user_list.html')
+def user_list(page=1):
+    users=User.query.order_by(User.addtime.desc()).paginate(page=page,per_page=2)
+    return render_template('admin/user_list.html',users=users)
 
 
 # 会员查看
-@admin.route('/user/view')
+@admin.route('/user/view/<int:id>')
 @admin_login_req
-def user_view():
-    return render_template('admin/user_view.html')
+def user_view(id):
+    user=User.query.get_or_404(id)
+
+    return render_template('admin/user_view.html',user=user)
+
+# 会员删除
+@admin.route('/user/del/<int:id>')
+@admin_login_req
+def user_del(id):
+    user=User.query.get_or_404(id)
+    try:
+        db.session.delete(user)
+        db.session.commit()
+        flash('删除成功','ok')
+    except Exception as e:
+        db.session.rollback()
+        flash('删除失败','err')
+    return redirect(url_for('admin.user_list',page=1))
 
 
 # 评论列表
-@admin.route('/comment/list')
+@admin.route('/comment/list/<int:page>')
 @admin_login_req
-def comment_list():
-    return render_template('admin/comment_list.html')
+def comment_list(page=1):
+    comments=Comment.query.join(User).join(Movie).filter(Comment.user_id==User.id,Comment.movie_id==Movie.id).order_by(Comment.addtime.desc()).paginate(page=page,per_page=2)
+
+    return render_template('admin/comment_list.html',comments=comments)
+
+
+# 评论删除
+@admin.route('/comment/del/<int:id>')
+@admin_login_req
+def comment_del(id):
+    comment=Comment.query.get_or_404(id)
+    try:
+        db.session.delete(comment)
+        db.session.commit()
+        flash('删除成功','ok')
+    except Exception as e:
+        db.session.rollback()
+        flash('删除失败','err')
+    return redirect(url_for('admin.comment_list',page=1))
 
 
 # 收藏列表
-@admin.route('/moviecol/list')
+@admin.route('/moviecol/list/<int:page>')
 @admin_login_req
-def moviecol_list():
-    return render_template('admin/moviecol_list.html')
-
+def moviecol_list(page=1):
+    moviecols=Moviecol.query.join(User).join(Movie).filter(Moviecol.user_id==User.id,Moviecol.movie_id==Movie.id).paginate(page=page,per_page=2)
+    return render_template('admin/moviecol_list.html',moviecols=moviecols)
+# 删除收藏
+@admin.route('/moviecol/del/<int:id>')
+@admin_login_req
+def moviecol_del(id):
+    moviecol=Moviecol.query.get_or_404(id)
+    try:
+        db.session.delete(moviecol)
+        db.session.commit()
+        flash('删除成功','ok')
+    except Exception as e:
+        db.session.rollback()
+        flash('删除失败','err')
+    return redirect(url_for('admin.moviecol_list',page=1))
 
 # 操作日志列表
 @admin.route('/oplog/list')

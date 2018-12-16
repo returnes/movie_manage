@@ -12,6 +12,7 @@ app.config['SQLALCHEMY_MAX_OVERFLOW']=20
 app.config['DEBUG']=True
 app.config['SECRET_KEY'] = "asdfghjkl"
 app.config["UP_DIR"] = os.path.join(os.path.abspath(os.path.dirname(__file__)), "static/uploads/")
+app.config["UP_DIR_USER"] = os.path.join(os.path.abspath(os.path.dirname(__file__)), "static/uploads/users/")
 
 db = SQLAlchemy(app)
 

@@ -121,7 +121,7 @@ class MovieForm(FlaskForm):
         render_kw={'class':"form-control",'id':"input_release_time",'placeholder':"请选择上映时间！",'required':False}
     )
     submit=SubmitField(
-        '添加',
+        '添加/编辑',
         render_kw={'class':"btn btn-primary"}
     )
 
@@ -138,7 +138,7 @@ class PreviewForm(FlaskForm):
         label='预告封面',
         validators=[DataRequired("请选择预告封面！")],
         description='预告封面',
-        render_kw={'type':"file", 'id':"input_logo",'placeholder':"请输入预告封面！",'required':False}
+        render_kw={'id':"input_logo",'placeholder':"请输入预告封面！",'required':False}
     )
     submit=SubmitField(
         '添加',
