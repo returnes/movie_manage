@@ -2,8 +2,8 @@ import os
 
 from . import admin
 from flask import render_template, redirect, url_for, session, request, flash
-from app.admin.forms import LoginForm,TagForm,MovieForm
-from app.models import Admin, Tag, db, Oplog, Movie
+from app.admin.forms import LoginForm,TagForm,MovieForm,PreviewForm
+from app.models import Admin, Tag, db, Oplog, Movie,Preview
 from functools import wraps
 from werkzeug.utils import secure_filename
 from app import app
@@ -139,7 +139,6 @@ def movie_add():
     form=MovieForm()
     if form.validate_on_submit():
         data=form.data
-        print(form.url.name)
         file_url=secure_filename(form.url.data)
         file_logo=secure_filename(form.logo.data)
         if not os.path.exists(app.config['UP_DIR']):
@@ -148,8 +147,8 @@ def movie_add():
         url=change_filename(file_url)
         logo=change_filename(file_logo)
         # --------------------错误---------------
-        form.url.data.save("/static/uploads/12.png")
-        form.logo.data.save(app.config["UP_DIR"] + logo)
+        # form.url.data.save(app.config["UP_DIR"] + url)
+        # form.logo.data.save(app.config["UP_DIR"] + logo)
         movie=Movie(
             title=data['title'],
             url=url,
@@ -184,16 +183,41 @@ def movie_list(page=1):
 
 
 # 预告添加
-@admin.route('/preview/add')
+@admin.route('/preview/add',methods=['GET','POST'])
 def preview_add():
-    return render_template('admin/preview_add.html')
+    form=PreviewForm()
+    if form.validate_on_submit():
+        data=form.data
+        file_logo=secure_filename(form.logo.data) #获取文件名
+        if not os.path.exists(app.config['UP_DIR']):
+            os.makedirs(app.config['UP_DIR'])
+            os.chmod(app.config['UP_DIR'],'rw')
+        logo=change_filename(file_logo)
+        file_data=form.logo
+        print(type(file_data),file_data)
+        file_data.save(app.config['UP_DIR']+logo)
+        # form.logo.data.save(app.config['UP_DIR']+logo)
+        preview=Preview(
+            title=data['title'],
+            logo=logo
+        )
+        try:
+            db.session.add(preview)
+            db.session.commit()
+            flash('添加成功','ok')
+        except Exception as e:
+            db.session.rollback()
+            flash('请不要重复添加','err')
+        redirect(url_for('admin.preview_add'))
+    return render_template('admin/preview_add.html',form=form)
 
 
 # 预告列表
-@admin.route('/preview/list')
+@admin.route('/preview/list/<int:page>')
 @admin_login_req
-def preview_list():
-    return render_template('admin/preview_list.html')
+def preview_list(page=1):
+    previews=Preview.query.order_by(Preview.addtime.desc()).paginate(page=page,per_page=2)
+    return render_template('admin/preview_list.html',previews=previews)
 
 
 # 会员列表
