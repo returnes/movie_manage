@@ -1,6 +1,7 @@
 from flask import Flask, render_template
 from flask_sqlalchemy import SQLAlchemy
 import os
+from flask_wtf.csrf import CSRFProtect
 
 app = Flask(__name__)
 # app.debug = True
@@ -15,7 +16,7 @@ app.config["UP_DIR"] = os.path.join(os.path.abspath(os.path.dirname(__file__)), 
 app.config["UP_DIR_USER"] = os.path.join(os.path.abspath(os.path.dirname(__file__)), "static/uploads/users/")
 
 db = SQLAlchemy(app)
-
+CSRFProtect(app)
 from app.admin import admin as admin_blueprint
 from app.home import home as home_blueprint
 

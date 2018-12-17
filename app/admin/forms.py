@@ -1,7 +1,8 @@
 from flask_wtf import FlaskForm
-from wtforms import StringField,PasswordField,SubmitField,TextAreaField,FileField,IntegerField,DateField,SelectField
+from wtforms import StringField,PasswordField,SubmitField,TextAreaField,FileField,IntegerField,DateField,SelectField,SelectMultipleField
 from wtforms.validators import DataRequired,ValidationError
-from app.models import Admin,Tag
+from app.models import Admin, Tag, Auth
+
 
 class LoginForm(FlaskForm):
     '''管理员登录表单验证'''
@@ -144,5 +145,56 @@ class PreviewForm(FlaskForm):
         '添加',
         render_kw={'class':"btn btn-primary"}
     )
+
+
+class AuthForm(FlaskForm):
+    '''权限添加表单验证'''
+    name=StringField(
+        label='权限名称',
+        validators=[DataRequired('请输入权限名称！')],
+        description='权限名称',
+        render_kw={'class':"form-control", 'id':"input_name", 'placeholder':"请输入权限名称！",'required':False}
+    )
+    url=StringField(
+        label='权限地址',
+        validators=[DataRequired('请输入权限地址！')],
+        description='权限地址',
+        render_kw={'class':"form-control", 'id':"input_url", 'placeholder':"请输入权限地址！",'required':False}
+    )
+    submit=SubmitField(
+        '添加/编辑',
+        render_kw={'class':"btn btn-primary",'required':False}
+    )
+
+
+# 自定义checbox类
+class CheckboxField(SelectMultipleField):
+    from wtforms.widgets import ListWidget, CheckboxInput
+    widget = ListWidget(prefix_label=False)
+    option_widget = CheckboxInput()
+class RoleForm(FlaskForm):
+    '''角色表单验证'''
+    name=StringField(
+        label='角色名称',
+        validators=[DataRequired('请输入角色名称！')],
+        description='角色名称',
+        render_kw={'class':"form-control", 'id':"input_name",'placeholder':"请输入角色名称！",'required':False}
+    )
+
+    auths=CheckboxField(
+        label='权限',
+        validators=[DataRequired('请选择权限！')],
+        coerce=int,
+        # 通过列表生成器生成列表
+        choices=[(v.id, v.name) for v in Auth.query.all()],
+        description='权限',
+        render_kw={'name':"input_url",'required':False}
+    )
+
+    submit=SubmitField(
+        '添加/编辑',
+        render_kw={'class':"btn btn-primary"}
+    )
+
 
 

@@ -2,8 +2,8 @@ import os
 
 from . import admin
 from flask import render_template, redirect, url_for, session, request, flash
-from app.admin.forms import LoginForm,TagForm,MovieForm,PreviewForm
-from app.models import Admin, Tag, db, Oplog, Movie,Preview,User,Comment,Moviecol
+from app.admin.forms import LoginForm, TagForm, MovieForm, PreviewForm, AuthForm, RoleForm
+from app.models import Admin, Tag, db, Oplog, Movie, Preview, User, Comment, Moviecol, Auth, Role
 from functools import wraps
 from werkzeug.utils import secure_filename
 from app import app
@@ -90,7 +90,7 @@ def tag_add():
         # db.session.add(oplog)
         # db.session.commit()
         flash('添加成功','ok')
-        redirect(url_for('admin.tag_add'))
+        return redirect(url_for('admin.tag_add'))
     return render_template('admin/tag_add.html',form=form)
 
 
@@ -128,7 +128,7 @@ def tag_edit(id=None):
         db.session.add(tag)
         db.session.commit()
         flash('编辑成功', 'ok')
-        redirect(url_for('admin.tag_edit',id=id))
+        return redirect(url_for('admin.tag_edit',id=id))
     return render_template('admin/tag_edit.html', form=form,tag=tag)
 
 # 电影添加
@@ -168,7 +168,7 @@ def movie_add():
         except Exception as e:
             db.session.rollback()
             flash('请不要重复添加!','err')
-        redirect(url_for('admin.movie_add'))
+        return redirect(url_for('admin.movie_add'))
     return render_template('admin/movie_add.html',form=form)
 
 
@@ -222,7 +222,7 @@ def movie_edit(id=None):
         except Exception as e:
             db.session.rollback()
             flash('修改失败','err')
-        redirect(url_for('admin.movie_edit',id=id))
+        return redirect(url_for('admin.movie_edit',id=id))
     return render_template('admin/movie_edit.html',form=form,movie=movie)
 
 # 预告添加
@@ -250,7 +250,7 @@ def preview_add():
         except Exception as e:
             db.session.rollback()
             flash('请不要重复添加','err')
-        redirect(url_for('admin.preview_add'))
+        return redirect(url_for('admin.preview_add'))
     return render_template('admin/preview_add.html',form=form)
 
 
@@ -395,32 +395,150 @@ def userloginlog_list():
 
 
 # 权限添加
-@admin.route('/auth/add')
+@admin.route('/auth/add',methods=['GET','POST'])
 @admin_login_req
 def auth_add():
-    return render_template('admin/auth_add.html')
+    form=AuthForm()
+    if form.validate_on_submit():
+        data=form.data
+        counts=Auth.query.filter_by(name=data['name']).count()
+        if counts==1:
+            flash('已经存在，添加错误','err')
+            return redirect(url_for('admin.auth_add'))
+        auth=Auth(name=data['name'],url=data['url'])
+        try:
+            db.session.add(auth)
+            db.session.commit()
+            flash('添加成功','ok')
+        except Exception as e:
+            db.session.rollback()
+            flash('添加失败','err')
+        return redirect(url_for('admin.auth_add'))
+
+    return render_template('admin/auth_add.html',form=form)
 
 
 # 权限列表
-@admin.route('/auth/list')
+@admin.route('/auth/list/<int:page>')
 @admin_login_req
-def auth_list():
-    return render_template('admin/auth_list.html')
+def auth_list(page=1):
+    auths=Auth.query.order_by(Auth.addtime.desc()).paginate(page=page,per_page=2)
+
+    return render_template('admin/auth_list.html',auths=auths)
+
+# 权限删除
+@admin.route('/auth/del/<int:id>')
+@admin_login_req
+def auth_del(id=None):
+    auth=Auth.query.get_or_404(id)
+    if not auth:
+        flash('删除失败','err')
+    else:
+        try:
+            db.session.delete(auth)
+            db.session.commit()
+            flash('删除成功','ok')
+        except Exception as e:
+            db.session.rollback()
+            flash('删除失败','err')
+    return redirect(url_for('admin.auth_list',page=1))
+
+# 权限编辑
+@admin.route('/auth/edit/<int:id>',methods=['GET','POST'])
+@admin_login_req
+def auth_edit(id):
+    form=AuthForm()
+    auth=Auth.query.filter_by(id=id).first()
+    if not auth:
+        flash('跳转错误','err')
+        return redirect(url_for('admin.auth_list'))
+    if form.validate_on_submit() and auth:
+        data=form.data
+        auth.name=data['name']
+        auth.url=data['url']
+        try:
+            db.session.commit()
+            flash('修改成功','ok')
+        except Exception as e:
+            db.session.rollback()
+            flash('修改失败','err')
+        return redirect(url_for('admin.auth_edit',id=id))
+    return render_template('admin/auth_edit.html',form=form,auth=auth)
 
 
 # 角色添加
-@admin.route('/role/add')
+@admin.route('/role/add',methods=['GET','POST'])
 @admin_login_req
 def role_add():
-    return render_template('admin/role_add.html')
+    form=RoleForm()
+    if form.validate_on_submit():
+        data=form.data
+        role=Role.query.filter_by(name=data['name']).first()
+        if role:
+            flash('已经存在','err')
+            return redirect(url_for('admin.role_add'))
+        roles=Role(
+            name=data['name'],
+            # auths=data['auths']
+            auths=",".join(map(lambda v: str(v), data["auths"]))
+        )
+        try:
+            db.session.add(roles)
+            db.session.commit()
+            flash('添加成功','ok')
+        except Exception as e:
+            db.session.rollback()
+        return redirect(url_for('admin.role_add'))
+    return render_template('admin/role_add.html',form=form)
 
 
 # 角色列表
-@admin.route('/role/list')
+@admin.route('/role/list/<int:page>')
 @admin_login_req
-def role_list():
-    return render_template('admin/role_list.html')
+def role_list(page=1):
+    roles=Role.query.order_by(Role.addtime.desc()).paginate(page=page,per_page=2)
+    return render_template('admin/role_list.html',roles=roles)
 
+# 角色删除
+@admin.route('/role/del/<int:id>')
+@admin_login_req
+def role_del(id):
+    role=Role.query.get_or_404(id)
+    try:
+        db.session.delete(role)
+        db.session.commit()
+        flash('删除成功','ok')
+    except Exception as e:
+        db.session.rollback()
+        flash('删除失败','err')
+    return redirect(url_for('admin.role_list',page=1))
+
+# 角色编辑
+@admin.route('/role/edit/<int:id>',methods=['GET','POST'])
+@admin_login_req
+def role_edit(id):
+    form=RoleForm()
+    role=Role.query.get_or_404(id)
+    if request.method=='GET':
+        auths=role.auths
+        form.auths.data = list(map(lambda v: int(v), auths.split(",")))
+    if form.validate_on_submit():
+        data=form.data
+        role_count=Role.query.filter_by(name=data['name']).count()
+        if role.name!=data['name']and role_count==1:
+            flash('已经存在','err')
+            return redirect(url_for('admin.role_edit',id=id))
+        role.name=data['name']
+        role.auths=','.join(map(lambda v:str(v),data['auths']))
+        try:
+            db.session.commit()
+            flash('编辑成功','ok')
+        except Exception as e:
+            db.session.rollback()
+            flash('编辑错误','err')
+        return redirect(url_for('admin.role_edit',id=id))
+
+    return render_template('admin/role_edit.html',form=form,role=role)
 
 # 管理员添加
 @admin.route('/admin/add')
